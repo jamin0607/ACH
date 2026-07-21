@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>League Scoreboard — Fantasy Baseball</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#FAFAF7; --panel:#FFFFFF; --panel2:#F2F3EE; --line:#E3E6DD;
+  --chalk:#1C2620; --muted:#55665A; --faint:#7C8B7F;
+  --grass:#1E7A46; --clay:#B2461A; --amber:#A15E06;
+  --win:#1E7A46; --loss:#B3261E; --tie:#8A6D12;
+  --ink:#12180F; --accenttext:#FFFFFF;
+  --sb:260px;
+  --display:'Oswald',sans-serif; --body:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--chalk); font-family:var(--body);
+  font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+a{color:inherit;text-decoration:none}
+::selection{background:var(--amber);color:#fff}
+
+/* ---------- sidebar ---------- */
+.sidebar{
+  position:fixed; top:0; left:0; width:var(--sb); height:100vh; overflow-y:auto;
+  background:linear-gradient(180deg,#FFFFFF,#F1F2EB);
+  border-right:1px solid var(--line); padding:22px 16px 40px; z-index:20;
+}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.brand .ball{
+  width:26px;height:26px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#fff,#e7e2d6);
+  border:1px solid #d64b3a; position:relative; flex:none;
+}
+.brand .ball::before,.brand .ball::after{
+  content:"";position:absolute;top:5px;bottom:5px;width:8px;
+  border:1.4px solid #d64b3a;border-radius:50%;
+}
+.brand .ball::before{left:2px;border-right:none;border-top:none;border-bottom:none}
+.brand .ball::after{right:2px;border-left:none;border-top:none;border-bottom:none}
+.brand h1{font-family:var(--display);font-weight:600;font-size:18px;letter-spacing:.02em;margin:0;line-height:1.05}
+.brand .sub{font-size:10.5px;color:var(--faint);letter-spacing:.18em;text-transform:uppercase}
+.thru{
+  font-family:var(--mono);font-size:11px;color:var(--amber);
+  letter-spacing:.08em;margin:14px 2px 18px;
+}
+.nav-label{
+  font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--faint);
+  margin:18px 6px 8px;
+}
+.navitem{
+  display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;
+  cursor:pointer;color:var(--muted);font-size:13.5px;transition:.14s;
+  border:1px solid transparent;
+}
+.navitem:hover{background:var(--panel);color:var(--chalk)}
+.navitem.active{background:var(--panel2);color:var(--chalk);border-color:var(--line)}
+.navitem .abbr{
+  font-family:var(--mono);font-size:10px;font-weight:700;color:var(--accenttext);
+  background:var(--muted);border-radius:4px;padding:2px 5px;min-width:38px;text-align:center;flex:none;
+}
+.navitem.active .abbr{background:var(--amber)}
+.navitem .rk{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--faint)}
+.navitem .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- main ---------- */
+.main{margin-left:var(--sb);padding:34px 40px 90px;max-width:1180px}
+.eyebrow{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--clay);font-weight:600;margin-bottom:6px}
+h2.section{font-family:var(--display);font-weight:600;font-size:26px;margin:0 0 2px;letter-spacing:.01em}
+.section-note{color:var(--muted);font-size:13px;margin:0 0 20px;max-width:640px}
+.block{margin-top:44px}
+.block > .eyebrow{margin-bottom:4px}
+
+.grid{display:grid;gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+.card h3{font-family:var(--display);font-weight:500;font-size:15px;letter-spacing:.03em;text-transform:uppercase;color:var(--chalk);margin:0 0 4px}
+.card .hint{color:var(--faint);font-size:12px;margin:0 0 14px}
+
+/* scoreboard header */
+.scorebar{
+  background:linear-gradient(135deg,#FFFFFF,#F3F4EC);
+  border:1px solid var(--line);border-radius:14px;padding:22px 26px;
+  display:flex;align-items:center;gap:30px;flex-wrap:wrap;
+  box-shadow:0 1px 3px rgba(20,30,20,.05);
+}
+.sb-rank{
+  font-family:var(--display);font-weight:700;font-size:14px;letter-spacing:.1em;
+  color:var(--accenttext);background:var(--amber);border-radius:8px;padding:6px 12px;text-transform:uppercase;
+}
+.sb-name{font-family:var(--display);font-weight:600;font-size:32px;line-height:1;letter-spacing:.01em}
+.sb-abbr{font-family:var(--mono);color:var(--faint);font-size:12px;letter-spacing:.15em;margin-top:6px}
+.sb-stats{display:flex;gap:26px;margin-left:auto}
+.sb-stat{text-align:center}
+.sb-stat .v{font-family:var(--mono);font-weight:700;font-size:30px;color:var(--amber);line-height:1}
+.sb-stat .l{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-top:7px}
+
+/* tables */
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{
+  text-align:right;font-family:var(--body);font-weight:600;font-size:10.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--faint);padding:0 10px 10px;border-bottom:1px solid var(--line);white-space:nowrap;
+}
+th.l,td.l{text-align:left}
+td{padding:9px 10px;border-bottom:1px solid #EEF0E7;font-family:var(--mono);font-size:13px;color:var(--chalk);text-align:right;white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td.team{font-family:var(--body);font-weight:500;text-align:left}
+tr.clickable{cursor:pointer;transition:.12s}
+tr.clickable:hover td{background:#F2F4EB}
+.rank-cell{color:var(--faint);width:26px}
+.pct-wrap{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.pct-bar{height:6px;border-radius:3px;background:var(--grass);opacity:.85}
+.pill{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px}
+.pill.W{background:#DDF3E4;color:var(--win)} .pill.L{background:#FBDFDC;color:var(--loss)} .pill.T{background:#F5EBC7;color:var(--tie)}
+.chip{font-family:var(--mono);font-size:11px;padding:1px 6px;border-radius:4px;background:var(--panel2);color:var(--muted)}
+
+/* leaders */
+.leaders{grid-template-columns:repeat(5,1fr)}
+.leader{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:13px 14px}
+.leader .cat{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--clay);font-weight:600}
+.leader .val{font-family:var(--mono);font-weight:700;font-size:22px;color:var(--amber);margin:6px 0 2px}
+.leader .who{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.leader .wk{font-size:11px;color:var(--faint);margin-top:2px}
+
+/* notable team stats */
+.notable{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.notable .cat{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--clay);font-weight:600;margin-bottom:8px}
+.notable .big{font-family:var(--mono);font-weight:700;font-size:26px;line-height:1}
+.notable .big.up{color:var(--win)} .notable .big.down{color:var(--loss)} .notable .big.flat{color:var(--muted)}
+.notable .sub{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.5}
+
+/* chart wrappers */
+.chart-box{position:relative;height:300px}
+.chart-tall{position:relative;height:360px}
+.chart-square{position:relative;aspect-ratio:1/1;width:100%;max-width:460px;margin:0 auto}
+.mini-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.mini{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 8px 4px}
+.mini .t{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:center;font-weight:600}
+.mini .cb{position:relative;height:112px}
+
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.seg{font-family:var(--body);font-size:12px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);
+  border-radius:6px;padding:6px 11px;cursor:pointer;transition:.12s}
+.seg:hover{color:var(--chalk)}
+.seg.on{background:var(--amber);color:#fff;border-color:var(--amber);font-weight:600}
+
+.two{grid-template-columns:1fr 1fr}
+.three{grid-template-columns:repeat(3,1fr)}
+.four{grid-template-columns:repeat(4,1fr)}
+.h2h td{font-size:11.5px;padding:6px 6px;text-align:center}
+.h2h th{text-align:center;padding:0 6px 8px}
+.h2h td.team{text-align:left;white-space:nowrap}
+.matchcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px}
+.matchcard .sc{font-family:var(--mono);font-weight:700;font-size:17px;margin-left:auto;white-space:nowrap}
+.matchcard .nm2{font-size:12px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.foot{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);color:var(--faint);font-size:11.5px;line-height:1.7}
+.foot code{font-family:var(--mono);color:var(--muted);background:var(--panel);padding:1px 5px;border-radius:4px}
+
+/* ---------- mobile top bar + drawer (hidden on desktop) ---------- */
+.topbar{display:none}
+.scrim{display:none}
+
+@media(max-width:920px){
+  :root{--sb:0px}
+
+  /* fixed top bar with menu button */
+  .topbar{
+    display:flex;position:fixed;top:0;left:0;right:0;height:54px;z-index:30;
+    background:var(--panel);border-bottom:1px solid var(--line);
+    align-items:center;gap:12px;padding:0 14px;
+  }
+  .topbar .burger{
+    width:40px;height:40px;border:1px solid var(--line);border-radius:9px;
+    background:var(--panel2);display:flex;flex-direction:column;justify-content:center;
+    align-items:center;gap:4px;cursor:pointer;flex:none;
+  }
+  .topbar .burger span{display:block;width:17px;height:2px;background:var(--chalk);border-radius:1px}
+  .topbar .tb-name{font-family:var(--display);font-weight:600;font-size:16px;letter-spacing:.02em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .topbar .tb-sub{font-size:9.5px;color:var(--faint);letter-spacing:.16em;text-transform:uppercase}
+
+  /* sidebar becomes a slide-in drawer */
+  .sidebar{
+    position:fixed;top:0;left:0;height:100vh;width:282px;max-width:84vw;
+    transform:translateX(-105%);transition:transform .22s ease;
+    box-shadow:6px 0 24px rgba(15,25,15,.18);z-index:40;
+  }
+  .sidebar.open{transform:none}
+  .scrim{
+    display:block;position:fixed;inset:0;background:rgba(12,18,12,.45);
+    opacity:0;pointer-events:none;transition:opacity .2s;z-index:35;
+  }
+  .scrim.show{opacity:1;pointer-events:auto}
+  .navitem{padding:11px 10px;font-size:14.5px}   /* bigger tap targets */
+
+  /* content */
+  .main{margin-left:0;padding:70px 14px 60px;max-width:100%}
+  .card{overflow-x:auto;-webkit-overflow-scrolling:touch}  /* wide tables scroll */
+  h2.section{font-size:22px}
+  .scorebar{gap:14px;padding:16px 16px}
+  .sb-name{font-size:23px}
+  .sb-abbr{font-size:11px}
+  .sb-stats{margin-left:0;width:100%;gap:0;justify-content:space-between}
+  .sb-stat .v{font-size:21px}
+  .notable .big{font-size:22px}
+  table{font-size:12.5px}
+  td{padding:8px 8px}
+
+  /* grids */
+  .leaders{grid-template-columns:repeat(2,1fr)}
+  .two,.three{grid-template-columns:1fr}
+  .four{grid-template-columns:repeat(2,1fr)}
+  .mini-grid{grid-template-columns:repeat(auto-fit,minmax(128px,1fr))}
+  .chart-square{max-width:min(92vw,380px)}
+  .chart-tall{height:320px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <button class="burger" id="burger" aria-label="Open menu"><span></span><span></span><span></span></button>
+  <div style="min-width:0">
+    <div class="tb-name" id="topbarName">Atlantic City Hambinos</div>
+    <div class="tb-sub">Fantasy Baseball</div>
+  </div>
+</header>
+<div class="scrim" id="scrim"></div>
+<aside class="sidebar">
+  <div class="brand">
+    <div class="ball"></div>
+    <div>
+      <h1 id="leagueName">Atlantic City Hambinos</h1>
+      <div class="sub">Fantasy Baseball</div>
+    </div>
+  </div>
+  <div class="thru" id="thru"></div>
+  <div class="nav-label">League</div>
+  <div class="navitem" data-route="overview"><span class="abbr">ALL</span><span class="nm">Overview</span></div>
+  <div class="nav-label">Teams · by standing</div>
+  <div id="teamNav"></div>
+</aside>
+<main class="main" id="view"></main>
+
+<script>
+const LEAGUE = /*__DATA__*/;
+
+/* ---------- chart.js theme ---------- */
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.color = "#55665A";
+Chart.defaults.borderColor = "#E3E6DD";
+const AMBER="#A15E06", GRASS="#1E7A46", CLAY="#B2461A", CHALK="#1C2620", MUTED="#55665A";
+const GRIDLINE="#EAEDE3";
+let CHARTS = [];
+function clearCharts(){ CHARTS.forEach(c=>c.destroy()); CHARTS=[]; }
+function mk(ctx,cfg){ const c=new Chart(ctx,cfg); CHARTS.push(c); return c; }
+
+const CATS = LEAGUE.cats;
+const catByKey = Object.fromEntries(CATS.map(c=>[c.key,c]));
+const fmt=(v,d)=> v==null?"—":(d===0?Math.round(v).toString():Number(v).toFixed(d));
+
+function logoImg(abbr, size){
+  const url = LEAGUE.logos && LEAGUE.logos[abbr];
+  const common = `width:${size}px;height:${size}px;border-radius:50%;flex:none;`;
+  if(url){
+    return `<img src="${url}" alt="" loading="lazy" style="${common}object-fit:cover;background:var(--panel2);border:1px solid var(--line)" onerror="this.outerHTML=logoFallback('${abbr}',${size})">`;
+  }
+  return logoFallback(abbr, size);
+}
+function logoFallback(abbr, size){
+  const fs = Math.max(8, Math.round(size*0.34));
+  return `<div style="width:${size}px;height:${size}px;border-radius:50%;flex:none;background:var(--panel2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:${fs}px;font-weight:700;color:var(--muted)">${(abbr||"?").slice(0,3)}</div>`;
+}
+
+/* ---------- sidebar nav ---------- */
+document.getElementById("leagueName").textContent = LEAGUE.meta.leagueName || "Atlantic City Hambinos";
+document.getElementById("topbarName").textContent = LEAGUE.meta.leagueName || "Atlantic City Hambinos";
+
+/* mobile drawer */
+function setNav(open){
+  document.querySelector(".sidebar").classList.toggle("open", open);
+  document.getElementById("scrim").classList.toggle("show", open);
+}
+document.getElementById("burger").onclick = ()=>setNav(!document.querySelector(".sidebar").classList.contains("open"));
+document.getElementById("scrim").onclick = ()=>setNav(false);
+document.getElementById("thru").textContent = "▸ Through Week " + LEAGUE.meta.lastWeek;
+const teamNav = document.getElementById("teamNav");
+LEAGUE.standings.forEach(s=>{
+  const el=document.createElement("div");
+  el.className="navitem"; el.dataset.route="team/"+s.team;
+  el.innerHTML=`${logoImg(s.team,20)}<span class="nm">${s.name}</span><span class="rk">#${s.rank}</span>`;
+  el.onclick=()=>location.hash="#/team/"+s.team;
+  teamNav.appendChild(el);
+});
+document.querySelector('[data-route="overview"]').onclick=()=>location.hash="#/overview";
+
+function setActive(route){
+  document.querySelectorAll(".navitem").forEach(n=>n.classList.toggle("active",n.dataset.route===route));
+}
+
+/* ---------- helpers ---------- */
+function leadersHTML(){
+  // best team per category (radar value 12 == best)
+  let cards="";
+  CATS.forEach((c,i)=>{
+    let best=null,bv=-1;
+    LEAGUE.teamOrder.forEach(t=>{
+      const r=LEAGUE.teams[t].radar[i];
+      if(r>bv){bv=r;best=t;}
+    });
+    const td=LEAGUE.teams[best];
+    cards+=`<div class="leader"><div class="cat">${c.label}</div>
+      <div class="val">${fmt(td.seasonAvg[c.key],c.dec)}</div>
+      <div class="who" style="display:flex;align-items:center;gap:6px">${logoImg(best,15)}<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${td.name}</span></div></div>`;
+  });
+  return cards;
+}
+
+function weeklyHighsHTML(){
+  const list = LEAGUE.weeklyHighs || [];
+  return list.map(h=>`<div class="leader">
+      <div class="cat">${h.label}</div>
+      <div class="val">${fmt(h.value, catByKey[h.cat].dec)}</div>
+      <div class="who" style="display:flex;align-items:center;gap:6px">${logoImg(h.team,15)}<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${h.name}</span></div>
+      <div class="wk">Week ${h.week}</div>
+    </div>`).join("");
+}
+
+function standingsRows(){
+  const maxPct=Math.max(...LEAGUE.standings.map(s=>s.pct));
+  return LEAGUE.standings.map(s=>`
+    <tr class="clickable" onclick="location.hash='#/team/${s.team}'">
+      <td class="rank-cell">${s.rank}</td>
+      <td class="team"><div style="display:flex;align-items:center;gap:9px">${logoImg(s.team,22)}<span>${s.name}</span><span class="chip">${s.team}</span></div></td>
+      <td>${s.w}-${s.l}-${s.t}</td>
+      <td><div class="pct-wrap"><span>${s.pct.toFixed(3)}</span>
+        <span class="pct-bar" style="width:${8+56*(s.pct/maxPct)}px"></span></div></td>
+      <td>${s.catWins}</td>
+    </tr>`).join("");
+}
+
+const teamName = a => (LEAGUE.teams[a] && LEAGUE.teams[a].name) || a;
+
+function lastWeekHTML(){
+  return (LEAGUE.lastWeek||[]).map(g=>{
+    const aWin=g.aw>g.bw, bWin=g.bw>g.aw;
+    return `<div class="matchcard">
+      ${logoImg(g.a,26)}
+      <div style="min-width:0">
+        <div class="nm2" style="font-weight:${aWin?700:400};color:${aWin?'var(--win)':'var(--chalk)'}">${teamName(g.a)}</div>
+        <div class="nm2" style="font-weight:${bWin?700:400};color:${bWin?'var(--win)':'var(--chalk)'}">${teamName(g.b)}</div>
+      </div>
+      <div class="sc"><span style="color:${aWin?'var(--win)':'var(--muted)'}">${fmt(g.aw,0)}</span>–<span style="color:${bWin?'var(--win)':'var(--muted)'}">${fmt(g.bw,0)}</span></div>
+      ${logoImg(g.b,26)}
+    </div>`;}).join("");
+}
+
+function powerRowsHTML(){
+  const maxScore=Math.max(...LEAGUE.power.map(p=>p.score));
+  return LEAGUE.power.map(p=>{
+    const luckPct=Math.round(p.luck*100);
+    const d=p.delta;
+    const dHtml = d>0?`<span style="color:var(--win);font-weight:700">▲${d}</span>`
+                : d<0?`<span style="color:var(--loss);font-weight:700">▼${-d}</span>`
+                : `<span style="color:var(--faint)">—</span>`;
+    return `<tr class="clickable" onclick="location.hash='#/team/${p.team}'">
+      <td class="rank-cell">${p.rank}</td>
+      <td class="team"><div style="display:flex;align-items:center;gap:9px">${logoImg(p.team,20)}<span>${p.name}</span></div></td>
+      <td><div class="pct-wrap"><span style="font-weight:700;color:var(--amber)">${p.score.toFixed(1)}</span>
+        <span class="pct-bar" style="width:${8+56*(p.score/maxScore)}px;background:var(--amber)"></span></div></td>
+      <td>${p.recRank<=3?'<span style="color:var(--win)">':''}${LEAGUE.standings.find(s=>s.team===p.team).w}-${LEAGUE.standings.find(s=>s.team===p.team).l}-${LEAGUE.standings.find(s=>s.team===p.team).t}${p.recRank<=3?'</span>':''}</td>
+      <td>${p.apW}-${p.apL}-${p.apT}</td>
+      <td style="color:${luckPct>5?'var(--tie)':luckPct<-5?'var(--muted)':'var(--faint)'}">${luckPct>0?"+":""}${luckPct}%</td>
+      <td>${dHtml}</td>
+    </tr>`;}).join("");
+}
+
+function h2hHTML(){
+  const order = LEAGUE.standings.map(s=>s.team);
+  let h = `<table class="h2h"><thead><tr><th class="l">Team</th>`;
+  order.forEach(o=>{ h+=`<th title="${teamName(o)}">${o}</th>`; });
+  h += `</tr></thead><tbody>`;
+  order.forEach(a=>{
+    h += `<tr><td class="team"><div style="display:flex;align-items:center;gap:7px">${logoImg(a,18)}<span>${a}</span></div></td>`;
+    order.forEach(b=>{
+      if(a===b){ h+=`<td style="color:var(--line)">■</td>`; return; }
+      const rec=(LEAGUE.h2h[a]||{})[b];
+      if(!rec){ h+=`<td style="color:var(--faint)">·</td>`; return; }
+      const net=rec.w-rec.l;
+      const bg = net>0?"rgba(30,122,70,.13)": net<0?"rgba(179,38,30,.10)":"transparent";
+      const txt = `${rec.w}-${rec.l}${rec.t?("-"+rec.t):""}`;
+      h += `<td style="background:${bg}" title="${teamName(a)} vs ${teamName(b)}">${txt}</td>`;
+    });
+    h += `</tr>`;
+  });
+  return h + `</tbody></table>`;
+}
+
+function loreHTML(){
+  const s=LEAGUE.superlatives||{};
+  const cards=[];
+  if(s.blowout) cards.push({t:"Biggest Blowout", v:`${fmt(s.blowout.cw,0)}–${fmt(s.blowout.ocw,0)}`,
+    w:`${teamName(s.blowout.team)} ran over ${teamName(s.blowout.opp)}`, wk:`Week ${s.blowout.week}`});
+  if(s.closest) cards.push({t:"Closest Call", v:`${fmt(s.closest.cw,0)}–${fmt(s.closest.ocw,0)}`,
+    w:`${teamName(s.closest.team)} edged ${teamName(s.closest.opp)}`, wk:`Week ${s.closest.week}`});
+  if(s.bestWeek) cards.push({t:"Best Single Week", v:`${fmt(s.bestWeek.cw,0)}/10 cats`,
+    w:`${teamName(s.bestWeek.team)} vs ${teamName(s.bestWeek.opp)}`, wk:`Week ${s.bestWeek.week}`});
+  if(s.longestStreak) cards.push({t:"Longest Win Streak", v:`${s.longestStreak.length} straight`,
+    w:teamName(s.longestStreak.team), wk:""});
+  return cards.map(c=>`<div class="leader">
+    <div class="cat">${c.t}</div><div class="val">${c.v}</div>
+    <div class="who">${c.w}</div>${c.wk?`<div class="wk">${c.wk}</div>`:""}
+  </div>`).join("");
+}
+
+const RACE_COLORS=["#B3261E","#1E7A46","#A15E06","#2B5FB8","#7A3E9D","#0E7C86",
+                   "#C2185B","#5D4037","#33691E","#B2461A","#4527A0","#37474F"];
+function drawRace(){
+  const order = LEAGUE.standings.map(s=>s.team);
+  const ds = order.map((t,i)=>({
+    label:(LEAGUE.teams[t]&&LEAGUE.teams[t].name)||t,
+    data:LEAGUE.race[t], borderColor:RACE_COLORS[i%RACE_COLORS.length],
+    backgroundColor:RACE_COLORS[i%RACE_COLORS.length],
+    borderWidth:2, pointRadius:0, pointHoverRadius:4, tension:.15,
+  }));
+  mk(document.getElementById("raceChart"),{
+    type:"line",
+    data:{labels:LEAGUE.meta.weeks,datasets:ds},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"nearest",intersect:false},
+      plugins:{legend:{display:true,position:"bottom",labels:{color:MUTED,boxWidth:10,font:{size:10}}},
+        tooltip:{callbacks:{title:i=>"Week "+i[0].label}}},
+      scales:{x:{grid:{display:false},title:{display:true,text:"Week",color:MUTED}},
+              y:{beginAtZero:true,ticks:{stepSize:1},grid:{color:GRIDLINE},
+                 title:{display:true,text:"Cumulative wins",color:MUTED}}}}});
+}
+
+/* ---------- OVERVIEW ---------- */
+function renderOverview(){
+  clearCharts();
+  const m=LEAGUE.meta;
+  const v=document.getElementById("view");
+  v.innerHTML=`
+    <h2 class="section">Overview</h2>
+    <p class="section-note">${m.nTeams} teams, ${m.weeks.length} weeks played. Head-to-head, 10 categories a week — win the week by taking more categories than your opponent. Click any team to open its deep dive.</p>
+
+    <div class="scorebar" style="margin-top:8px">
+      <div><div class="sb-name">Standings</div><div class="sb-abbr">SORTED BY WIN %</div></div>
+      <div class="sb-stats">
+        <div class="sb-stat"><div class="v">${m.nTeams}</div><div class="l">Teams</div></div>
+        <div class="sb-stat"><div class="v">${m.lastWeek}</div><div class="l">Weeks</div></div>
+        <div class="sb-stat"><div class="v">10</div><div class="l">Categories</div></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="card" style="padding:16px 18px">
+        <table>
+          <thead><tr><th class="l">#</th><th class="l">Team</th><th>Record</th><th>Win %</th><th>Cat W</th></tr></thead>
+          <tbody>${standingsRows()}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="block">
+      <h2 class="section" style="font-size:20px">Last Week — Week ${m.lastWeek}</h2>
+      <div class="grid three">${lastWeekHTML()}</div>
+    </div>
+
+    <div class="block">
+      <h2 class="section" style="font-size:20px">Power Rankings</h2>
+      <p class="section-note">Blends record, all-play record (your record if you'd faced <em>every</em> team every week), and last-3-week form. "Luck" is record minus all-play — positive means the schedule has been kind.</p>
+      <div class="card" style="padding:16px 18px;overflow-x:auto">
+        <table>
+          <thead><tr><th class="l">#</th><th class="l">Team</th><th>Power</th><th>Record</th><th>All-Play</th><th>Luck</th><th>vs Record</th></tr></thead>
+          <tbody>${powerRowsHTML()}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="block">
+      <h2 class="section" style="font-size:20px">The Race</h2>
+      <p class="section-note">Cumulative match wins by week (ties count half). Click a name in the legend to hide a team.</p>
+      <div class="card"><div class="chart-tall"><canvas id="raceChart"></canvas></div></div>
+    </div>
+
+    <div class="block">
+      <h2 class="section" style="font-size:20px">Category Leaders</h2>
+      <p class="section-note">Season-best team in each category (per-week average, or rate for OBP/ERA/WHIP).</p>
+      <div class="grid leaders">${leadersHTML()}</div>
+    </div>
+
+    <div class="block">
+      <h2 class="section" style="font-size:20px">Best Single Week, By Category</h2>
+      <p class="section-note">The single best week anyone's had in each category all season — not a season total, one week's number.</p>
+      <div class="grid leaders">${weeklyHighsHTML()}</div>
+    </div>
+
+    <div class="block">
+      <h2 class="section" style="font-size:20px">Wins Over an Average Team</h2>
+      <p class="section-note">If every week you faced a perfectly average opponent, how many weeks would you have won? Strips out schedule luck.</p>
+      <div class="card"><div class="chart-box"><canvas id="avgTeamChart"></canvas></div></div>
+    </div>
+
+    <div class="block">
+      <h2 class="section" style="font-size:20px">Batting vs. Pitching</h2>
+      <p class="section-note">Net category wins vs. opponents on each side of the ball. Up = out-hitting the league; right = out-pitching it.</p>
+      <div class="card"><div class="chart-square"><canvas id="batPitchChart"></canvas></div></div>
+    </div>
+
+    <div class="block">
+      <h2 class="section" style="font-size:20px">Head-to-Head Grid</h2>
+      <p class="section-note">Season record of each row team against each column team. Green = winning the rivalry, red = losing it.</p>
+      <div class="card" style="padding:16px 18px;overflow-x:auto">${h2hHTML()}</div>
+    </div>
+
+    <div class="block">
+      <h2 class="section" style="font-size:20px">How Lucky Has Everyone Been?</h2>
+      <p class="section-note">Average ranking of the opponents each team has faced across all ten categories. 1 = brutal slate, 12 = cushy draw.</p>
+      <div class="card" style="padding:16px 18px">
+        <table>
+          <thead><tr><th class="l">#</th><th class="l">Team</th><th>Opp Runs</th><th>Opp OBP</th><th>Opp ERA</th><th>SOS Rank</th></tr></thead>
+          <tbody>${LEAGUE.sos.map((s,i)=>{
+            const t=LEAGUE.teams[s.team];
+            return `<tr class="clickable" onclick="location.hash='#/team/${s.team}'">
+              <td class="rank-cell">${i+1}</td>
+              <td class="team"><div style="display:flex;align-items:center;gap:9px">${logoImg(s.team,20)}<span>${s.name}</span></div></td>
+              <td>${fmt(t.oppAvg.R,1)}</td>
+              <td>${fmt(t.oppAvg.OBP,3)}</td>
+              <td>${fmt(t.oppAvg.ERA,2)}</td>
+              <td style="color:var(--amber);font-weight:700">${s.avgRank.toFixed(1)}</td>
+            </tr>`;}).join("")}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="block">
+      <h2 class="section" style="font-size:20px">Category Win Probability</h2>
+      <p class="section-note">Logistic model over weeks ${m.regWeeks[0]}–${m.regWeeks[m.regWeeks.length-1]} (opening week excluded): given a weekly total, how often does that number win the category?</p>
+      <div class="grid mini-grid" id="probGrid"></div>
+    </div>
+
+    ${footHTML()}
+  `;
+  drawAvgTeam(); drawBatPitch(); drawProbGrid(); drawRace();
+}
+
+function drawAvgTeam(){
+  const d=LEAGUE.avgTeam;
+  mk(document.getElementById("avgTeamChart"),{
+    type:"bar",
+    data:{labels:d.map(x=>x.name),datasets:[{data:d.map(x=>x.wins),
+      backgroundColor:GRASS,borderRadius:4,barThickness:16}]},
+    options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw+" wins"}}},
+      scales:{x:{beginAtZero:true,ticks:{stepSize:1},grid:{color:"#EAEDE3"}},
+              y:{grid:{display:false},ticks:{font:{size:11}}}}}});
+}
+
+function drawBatPitch(){
+  const d=LEAGUE.batpitch;
+  mk(document.getElementById("batPitchChart"),{
+    type:"scatter",
+    data:{datasets:[{data:d.map(x=>({x:x.pitching,y:x.batting,t:x.name})),
+      backgroundColor:AMBER,borderColor:"#1C2620",borderWidth:1,pointRadius:6,pointHoverRadius:8}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{
+        label:c=>`${c.raw.t}: bat ${c.raw.y>0?"+":""}${c.raw.y}, pitch ${c.raw.x>0?"+":""}${c.raw.x}`}}},
+      scales:{
+        x:{title:{display:true,text:"Pitching  (net category wins)",color:MUTED},grid:{color:"#EAEDE3"},
+           ticks:{callback:v=>v>0?"+"+v:v}},
+        y:{title:{display:true,text:"Batting  (net category wins)",color:MUTED},grid:{color:"#EAEDE3"},
+           ticks:{callback:v=>v>0?"+"+v:v}}}}});
+}
+
+function drawProbGrid(){
+  const g=document.getElementById("probGrid");
+  CATS.forEach(c=>{
+    const pc=LEAGUE.probCurves[c.key]; if(!pc) return;
+    const wrap=document.createElement("div"); wrap.className="mini";
+    wrap.innerHTML=`<div class="t">${c.label}</div><div class="cb"><canvas></canvas></div>`;
+    g.appendChild(wrap);
+    mk(wrap.querySelector("canvas"),{
+      type:"line",
+      data:{labels:pc.x,datasets:[{data:pc.p.map(p=>p*100),borderColor:CLAY,borderWidth:2,
+        pointRadius:0,fill:true,backgroundColor:"rgba(178,70,26,.12)",tension:.25}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{
+          title:i=>c.label+": "+i[0].label,label:v=>Math.round(v.raw)+"% to win"}}},
+        scales:{x:{ticks:{maxTicksLimit:4,font:{size:9}},grid:{display:false}},
+                y:{min:0,max:100,ticks:{stepSize:50,font:{size:9},callback:v=>v+"%"},grid:{color:"#EAEDE3"}}}}});
+  });
+}
+
+/* ---------- TEAM PAGE ---------- */
+let trendState={team:null,cat:"R",mode:"cat"};
+function renderTeam(abbr){
+  clearCharts();
+  const t=LEAGUE.teams[abbr];
+  if(!t){location.hash="#/overview";return;}
+  trendState={team:abbr,cat:"R",mode:"cat"};
+  const rec=t.record;
+  const v=document.getElementById("view");
+  v.innerHTML=`
+    <div class="eyebrow">Team Deep Dive</div>
+    <div class="scorebar">
+      ${logoImg(t.abbr,64)}
+      <div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+          <span class="sb-rank">Rank #${rec.rank}</span>
+        </div>
+        <div class="sb-name">${t.name}</div>
+        <div class="sb-abbr">${t.abbr}</div>
+      </div>
+      <div class="sb-stats">
+        <div class="sb-stat"><div class="v">${rec.w}-${rec.l}${rec.t?("-"+rec.t):""}</div><div class="l">Record</div></div>
+        <div class="sb-stat"><div class="v">${rec.pct.toFixed(3)}</div><div class="l">Win %</div></div>
+        <div class="sb-stat"><div class="v">${rec.catWins}</div><div class="l">Cat Wins</div></div>
+        <div class="sb-stat"><div class="v">${t.avgTeamWins}</div><div class="l">Wins vs Avg</div></div>
+      </div>
+    </div>
+
+    <div class="block grid four">
+      <div class="notable">
+        <div class="cat">Current Streak</div>
+        <div class="big ${t.streak.type==='W'?'up':t.streak.type==='L'?'down':'flat'}">${t.streak.length?t.streak.type+t.streak.length:"—"}</div>
+        <div class="sub">${t.streak.length
+            ? `${t.streak.length} week${t.streak.length>1?"s":""} in a row ${t.streak.type==='W'?"won":"lost"}`
+            : "No decided weeks yet"}</div>
+      </div>
+      <div class="notable">
+        <div class="cat">Best Week</div>
+        ${t.bestWeek ? `
+          <div class="big up">${fmt(t.bestWeek.catWins,0)}<span style="font-size:15px;color:var(--faint)">/10 cats</span></div>
+          <div class="sub">Week ${t.bestWeek.week} vs ${t.bestWeek.opp} <span class="pill ${t.bestWeek.result}">${t.bestWeek.result}</span></div>`
+          : `<div class="big flat">—</div><div class="sub">No weeks played yet</div>`}
+      </div>
+      <div class="notable">
+        <div class="cat">Clutch Record</div>
+        ${(t.clutch.w+t.clutch.l+t.clutch.t)>0 ? `
+          <div class="big ${t.clutch.w>t.clutch.l?'up':t.clutch.w<t.clutch.l?'down':'flat'}">${t.clutch.w}-${t.clutch.l}${t.clutch.t?("-"+t.clutch.t):""}</div>
+          <div class="sub">In matchups decided by ≤1 category</div>`
+          : `<div class="big flat">—</div><div class="sub">No nail-biters yet</div>`}
+      </div>
+      <div class="notable">
+        <div class="cat">Schedule Luck</div>
+        <div class="big ${t.allPlay.luck>0.02?'down':t.allPlay.luck<-0.02?'up':'flat'}">${t.allPlay.luck>0?"+":""}${Math.round(t.allPlay.luck*100)}%</div>
+        <div class="sub">All-play record ${t.allPlay.apW}-${t.allPlay.apL}-${t.allPlay.apT}. ${t.allPlay.luck>0.02?"The schedule has been kind.":t.allPlay.luck<-0.02?"Better than the record shows.":"Record about matches the play."}</div>
+      </div>
+    </div>
+
+    <div class="block grid two">
+      <div class="card">
+        <h3>How They Win</h3>
+        <p class="hint">League rank in each category — outer edge (12) is best, center (1) is worst.</p>
+        <div class="chart-tall"><canvas id="radarChart"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Batting vs Pitching</h3>
+        <p class="hint">Net category wins vs opponents. This team highlighted against the field.</p>
+        <div class="chart-square" style="max-width:360px"><canvas id="teamBatPitch"></canvas></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="card">
+        <h3>Chance to Win Each Category</h3>
+        <p class="hint">If this team posts its average week, the league model's odds it takes each category. 50% is the coin-flip line.</p>
+        <div class="chart-box"><canvas id="expCatChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="card">
+        <h3>Weekly Trend</h3>
+        <p class="hint">Track a single category week to week, or the blended batting / pitching scores.</p>
+        <div class="controls" id="trendCats"></div>
+        <div class="chart-box"><canvas id="trendChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="block grid three">
+      <div class="card" style="padding:16px 18px">
+        <h3 style="margin-bottom:12px">Season Line</h3>
+        <table>
+          <thead><tr><th class="l">Category</th><th>Per Week</th><th>Last 3</th><th>Rank</th><th>Win %</th></tr></thead>
+          <tbody>${CATS.map((c,i)=>{
+            const f=t.form[c.key]||{};
+            const arrow = f.good===true?`<span style="color:var(--win)">▲</span>`
+                        : f.good===false?`<span style="color:var(--loss)">▼</span>`
+                        : `<span style="color:var(--faint)">·</span>`;
+            const wr=t.catWinRate[c.key];
+            return `<tr>
+            <td class="team">${c.label}</td>
+            <td>${fmt(t.seasonAvg[c.key],c.dec)}</td>
+            <td>${fmt(f.recent,c.dec)} ${arrow}</td>
+            <td style="color:${t.radar[i]>=9?'var(--win)':t.radar[i]<=4?'var(--loss)':'var(--muted)'}">${LEAGUE.meta.nTeams-t.radar[i]+1}</td>
+            <td>${wr==null?"—":Math.round(wr)+"%"}</td>
+          </tr>`;}).join("")}</tbody>
+        </table>
+      </div>
+      <div class="card" style="padding:16px 18px">
+        <h3 style="margin-bottom:12px">vs Each Opponent</h3>
+        <p class="hint" style="margin-top:-4px">Season head-to-head record.</p>
+        <table>
+          <thead><tr><th class="l">Opponent</th><th>Record</th></tr></thead>
+          <tbody>${(t.vsOpp||[]).map(o=>{
+            const net=o.w-o.l;
+            return `<tr class="clickable" onclick="location.hash='#/team/${o.opp}'">
+            <td class="team"><div style="display:flex;align-items:center;gap:8px">${logoImg(o.opp,18)}<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.name}</span></div></td>
+            <td style="color:${net>0?'var(--win)':net<0?'var(--loss)':'var(--muted)'};font-weight:${net!==0?700:400}">${o.w}-${o.l}${o.t?("-"+o.t):""}</td>
+          </tr>`;}).join("")}</tbody>
+        </table>
+      </div>
+      <div class="card" style="padding:16px 18px">
+        <h3 style="margin-bottom:12px">Opponents Faced (Luck)</h3>
+        <p class="hint" style="margin-top:-4px">Average of every opponent's weekly output. SOS rank ${t.sos.avgRank.toFixed(1)}.</p>
+        <table>
+          <thead><tr><th class="l">Category</th><th>Opp Avg</th></tr></thead>
+          <tbody>${CATS.map(c=>`<tr>
+            <td class="team">${c.label}</td>
+            <td>${fmt(t.oppAvg[c.key], c.dec>=2?c.dec:1)}</td>
+          </tr>`).join("")}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="eyebrow">Every matchup so far</div>
+      <h2 class="section" style="font-size:20px">Game Log</h2>
+      <div class="card" style="padding:16px 18px;overflow-x:auto">
+        <table>
+          <thead><tr><th class="l">Wk</th><th class="l">Opponent</th><th>Result</th><th>Cat W</th>
+            ${CATS.map(c=>`<th>${c.key}</th>`).join("")}</tr></thead>
+          <tbody>${t.log.map(g=>`<tr>
+            <td class="rank-cell l">${g.week}</td>
+            <td class="team">${g.opp} <span class="chip">${g.oppAbbr}</span></td>
+            <td><span class="pill ${g.result}">${g.result}</span></td>
+            <td>${fmt(g.cw,0)}</td>
+            ${CATS.map(c=>`<td>${fmt(g.stats[c.key],c.dec)}</td>`).join("")}
+          </tr>`).join("")}</tbody>
+        </table>
+      </div>
+    </div>
+
+    ${footHTML()}
+  `;
+  drawRadar(abbr); drawTeamBatPitch(abbr); drawExpCat(abbr); buildTrendControls(abbr); drawTrend();
+}
+
+function drawExpCat(abbr){
+  const t=LEAGUE.teams[abbr];
+  const vals=CATS.map(c=> t.expCat[c.key]==null?null:Math.round(t.expCat[c.key]*1000)/10);
+  mk(document.getElementById("expCatChart"),{
+    type:"bar",
+    data:{labels:CATS.map(c=>c.key),datasets:[{data:vals,
+      backgroundColor:vals.map(v=>v==null?"#ccc":v>=50?"rgba(30,122,70,.75)":"rgba(179,38,30,.6)"),
+      borderRadius:4,barThickness:22}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{
+        title:i=>catByKey[i[0].label].label,
+        label:v=>v.raw==null?"insufficient data":v.raw+"% chance to win in an average week"}},
+        annotation:undefined},
+      scales:{x:{grid:{display:false},ticks:{font:{family:"'JetBrains Mono'",size:11}}},
+              y:{min:0,max:100,ticks:{callback:v=>v+"%",stepSize:25},grid:{color:GRIDLINE}}}}});
+}
+
+function drawRadar(abbr){
+  const t=LEAGUE.teams[abbr];
+  mk(document.getElementById("radarChart"),{
+    type:"radar",
+    data:{labels:CATS.map(c=>c.key),
+      datasets:[{data:t.radar,borderColor:AMBER,backgroundColor:"rgba(161,94,6,.14)",
+        borderWidth:2,pointBackgroundColor:AMBER,pointRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{
+        label:c=>catByKey[CATS[c.dataIndex].key].label+": rank "+(LEAGUE.meta.nTeams-c.raw+1)}}},
+      scales:{r:{min:0,max:LEAGUE.meta.nTeams,ticks:{stepSize:4,display:false},
+        grid:{color:"#EAEDE3"},angleLines:{color:"#EAEDE3"},
+        pointLabels:{color:CHALK,font:{size:11,family:"'JetBrains Mono'"}}}}}});
+}
+
+function drawTeamBatPitch(abbr){
+  const others=LEAGUE.batpitch.filter(x=>x.team!==abbr);
+  const me=LEAGUE.batpitch.find(x=>x.team===abbr);
+  mk(document.getElementById("teamBatPitch"),{
+    type:"scatter",
+    data:{datasets:[
+      {data:others.map(x=>({x:x.pitching,y:x.batting,t:x.name})),backgroundColor:"#CBD3C4",pointRadius:5},
+      {data:[{x:me.pitching,y:me.batting,t:me.name}],backgroundColor:AMBER,borderColor:"#1C2620",borderWidth:1.5,pointRadius:9,pointHoverRadius:10}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{
+        label:c=>`${c.raw.t}: bat ${c.raw.y>0?"+":""}${c.raw.y}, pitch ${c.raw.x>0?"+":""}${c.raw.x}`}}},
+      scales:{x:{title:{display:true,text:"Pitching",color:MUTED},grid:{color:"#EAEDE3"},ticks:{callback:v=>v>0?"+"+v:v}},
+              y:{title:{display:true,text:"Batting",color:MUTED},grid:{color:"#EAEDE3"},ticks:{callback:v=>v>0?"+"+v:v}}}}});
+}
+
+function buildTrendControls(abbr){
+  const box=document.getElementById("trendCats"); box.innerHTML="";
+  CATS.forEach(c=>{
+    const b=document.createElement("div"); b.className="seg"+(trendState.cat===c.key&&trendState.mode==="cat"?" on":"");
+    b.textContent=c.key; b.onclick=()=>{trendState.cat=c.key;trendState.mode="cat";refreshTrend();};
+    box.appendChild(b);
+  });
+  const b=document.createElement("div"); b.className="seg"+(trendState.mode==="combo"?" on":"");
+  b.textContent="Bat / Pitch"; b.onclick=()=>{trendState.mode="combo";refreshTrend();};
+  box.appendChild(b);
+}
+function refreshTrend(){ buildTrendControls(trendState.team); drawTrend(); }
+
+function drawTrend(){
+  const ex=Chart.getChart("trendChart"); if(ex){ex.destroy(); CHARTS=CHARTS.filter(c=>c!==ex);}
+  const t=LEAGUE.teams[trendState.team];
+  let cfg;
+  if(trendState.mode==="combo"){
+    cfg={type:"line",data:{labels:t.weeks,datasets:[
+      {label:"Batting score",data:t.comboBat,borderColor:CLAY,backgroundColor:CLAY,tension:.3,pointRadius:3,borderWidth:2},
+      {label:"Pitching score",data:t.comboPit,borderColor:GRASS,backgroundColor:GRASS,tension:.3,pointRadius:3,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:true,labels:{color:MUTED,boxWidth:12}}},
+        scales:{x:{grid:{display:false},title:{display:true,text:"Week",color:MUTED}},y:{grid:{color:"#EAEDE3"}}}}};
+  }else{
+    const c=catByKey[trendState.cat];
+    cfg={type:"line",data:{labels:t.weeks,datasets:[
+      {label:c.label,data:t.series[c.key],borderColor:AMBER,backgroundColor:"rgba(161,94,6,.12)",
+       fill:true,tension:.3,pointRadius:3,pointBackgroundColor:AMBER,borderWidth:2}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{title:i=>"Week "+i[0].label,label:v=>c.label+": "+fmt(v.raw,c.dec)}}},
+        scales:{x:{grid:{display:false},title:{display:true,text:"Week",color:MUTED}},y:{grid:{color:"#EAEDE3"}}}}};
+  }
+  mk(document.getElementById("trendChart"),cfg);
+}
+
+function footHTML(){
+  return `<div class="foot">
+    Head-to-head weekly categories · opening week excluded from probability models.<br>
+    Data pulled from ESPN · generated ${LEAGUE.meta.generated||""}.
+  </div>`;
+}
+
+/* ---------- router ---------- */
+function route(){
+  const h=location.hash.replace(/^#\/?/,"")||"overview";
+  window.scrollTo(0,0);
+  setNav(false);
+  if(h.startsWith("team/")){ const a=h.split("/")[1]; setActive("team/"+a); renderTeam(a); }
+  else { setActive("overview"); renderOverview(); }
+}
+window.addEventListener("hashchange",route);
+route();
+</script>
+</body>
+</html>
