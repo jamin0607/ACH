@@ -265,6 +265,7 @@ function mk(ctx,cfg){ const c=new Chart(ctx,cfg); CHARTS.push(c); return c; }
 const CATS = LEAGUE.cats;
 const catByKey = Object.fromEntries(CATS.map(c=>[c.key,c]));
 const fmt=(v,d)=> v==null?"—":(d===0?Math.round(v).toString():Number(v).toFixed(d));
+const cwf=v=> v==null?"—":(Number.isInteger(Number(v))?Number(v).toString():Number(v).toFixed(1));
 
 function logoImg(abbr, size){
   const url = LEAGUE.logos && LEAGUE.logos[abbr];
@@ -357,7 +358,7 @@ function lastWeekHTML(){
         <div class="nm2" style="font-weight:${aWin?700:400};color:${aWin?'var(--win)':'var(--chalk)'}">${teamName(g.a)}</div>
         <div class="nm2" style="font-weight:${bWin?700:400};color:${bWin?'var(--win)':'var(--chalk)'}">${teamName(g.b)}</div>
       </div>
-      <div class="sc"><span style="color:${aWin?'var(--win)':'var(--muted)'}">${fmt(g.aw,0)}</span>–<span style="color:${bWin?'var(--win)':'var(--muted)'}">${fmt(g.bw,0)}</span></div>
+      <div class="sc"><span style="color:${aWin?'var(--win)':'var(--muted)'}">${cwf(g.aw)}</span>–<span style="color:${bWin?'var(--win)':'var(--muted)'}">${cwf(g.bw)}</span></div>
       ${logoImg(g.b,26)}
     </div>`;}).join("");
 }
@@ -637,7 +638,7 @@ function renderTeam(abbr){
       <div class="notable">
         <div class="cat">Best Week</div>
         ${t.bestWeek ? `
-          <div class="big up">${fmt(t.bestWeek.catWins,0)}<span style="font-size:15px;color:var(--faint)">/10 cats</span></div>
+          <div class="big up">${cwf(t.bestWeek.catWins)}<span style="font-size:15px;color:var(--faint)">/10 cats</span></div>
           <div class="sub">Week ${t.bestWeek.week} vs ${t.bestWeek.opp} <span class="pill ${t.bestWeek.result}">${t.bestWeek.result}</span></div>`
           : `<div class="big flat">—</div><div class="sub">No weeks played yet</div>`}
       </div>
@@ -742,7 +743,7 @@ function renderTeam(abbr){
             <td class="rank-cell l">${g.week}</td>
             <td class="team">${g.opp} <span class="chip">${g.oppAbbr}</span></td>
             <td><span class="pill ${g.result}">${g.result}</span></td>
-            <td>${fmt(g.cw,0)}</td>
+            <td>${cwf(g.cw)}</td>
             ${CATS.map(c=>`<td>${fmt(g.stats[c.key],c.dec)}</td>`).join("")}
           </tr>`).join("")}</tbody>
         </table>
