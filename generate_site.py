@@ -199,7 +199,15 @@ def add_opponents(base):
 #  ANALYTICS  (source-independent)
 # ===========================================================================
 def cat_wins_row(row):
-    return sum(float(row["R." + c]) for c in CAT_KEYS if pd.notna(row["R." + c]))
+    """Categories won that week; a tied category counts as half a win."""
+    total = 0.0
+    for c in CAT_KEYS:
+        r = row.get("R." + c)
+        if pd.notna(r):
+            total += float(r)
+        elif pd.notna(row.get(c)) and pd.notna(row.get("O." + c)):
+            total += 0.5          # both posted a value, flag NaN -> tied category
+    return total
 
 
 def fmtcw(v):
@@ -236,7 +244,7 @@ def build(merged, names, league_name=None, logos=None):
         standings.append({"team": t, "name": names.get(t, t), "logo": logos.get(t),
                           "w": w, "l": l, "t": tie,
                           "gp": gp, "pct": rnd((w + tie / 2) / gp if gp else 0, 3),
-                          "catWins": int(sub["catwins"].sum())})
+                          "catWins": rnd(sub["catwins"].sum(), 1)})
     standings.sort(key=lambda s: (-s["pct"], -s["catWins"]))
     for i, s in enumerate(standings):
         s["rank"] = i + 1
@@ -473,8 +481,14 @@ def build(merged, names, league_name=None, logos=None):
         sub = df[df["Team"] == t]
         cat_win_rate[t] = {}
         for c in CAT_KEYS:
-            m = sub["R." + c].mean()   # NaN-safe: ties are NaN and skipped
-            cat_win_rate[t][c] = rnd(m * 100, 0) if pd.notna(m) else None
+            vals = []
+            for _, r in sub.iterrows():
+                rc = r["R." + c]
+                if pd.notna(rc):
+                    vals.append(float(rc))
+                elif pd.notna(r[c]) and pd.notna(r["O." + c]):
+                    vals.append(0.5)          # tied category counts half
+            cat_win_rate[t][c] = rnd(float(np.mean(vals)) * 100, 0) if vals else None
 
     team_detail = {}
     for t in teams:
